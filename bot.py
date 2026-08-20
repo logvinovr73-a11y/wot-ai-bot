@@ -101,7 +101,7 @@ async def handle_text_questions(message: types.Message):
         response = await loop.run_in_executor(
             None,
             lambda: client.models.generate_content(
-                model="gemini-2.5-flash",
+                model="gemini-1.5-flash",
                 contents=message.text,
                 config=genai_types.GenerateContentConfig(system_instruction=SYSTEM_PROMPT)
             )
