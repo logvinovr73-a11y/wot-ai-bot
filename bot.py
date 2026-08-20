@@ -67,7 +67,7 @@ async def handle_gameplay_video(message: types.Message):
         response = await loop.run_in_executor(
             None, 
             lambda: client.models.generate_content(
-                model="gemini-2.5-flash",
+                model="gemini-1.5-flash",
                 contents=[uploaded_file, prompt],
                 config=genai_types.GenerateContentConfig(system_instruction=SYSTEM_PROMPT)
             )
