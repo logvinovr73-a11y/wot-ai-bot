@@ -5,6 +5,7 @@ from aiohttp import web
 from aiogram import Bot, Dispatcher, F, types
 from aiogram.filters import CommandStart
 from google import genai
+from google.genai import types as genai_types
 import edge_tts
 
 # Налаштування логування
@@ -14,7 +15,7 @@ logging.basicConfig(level=logging.INFO)
 TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN")
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
 
-# Ініціалізація нового клієнта Gemini API (v1)
+# Ініціалізація нового клієнта Gemini API
 client = genai.Client(api_key=GEMINI_API_KEY)
 
 SYSTEM_PROMPT = """
@@ -68,7 +69,7 @@ async def handle_gameplay_video(message: types.Message):
             lambda: client.models.generate_content(
                 model="gemini-2.5-flash",
                 contents=[uploaded_file, prompt],
-                config={"system_instruction": SYSTEM_PROMPT}
+                config=genai_types.GenerateContentConfig(system_instruction=SYSTEM_PROMPT)
             )
         )
         
@@ -102,7 +103,7 @@ async def handle_text_questions(message: types.Message):
             lambda: client.models.generate_content(
                 model="gemini-2.5-flash",
                 contents=message.text,
-                config={"system_instruction": SYSTEM_PROMPT}
+                config=genai_types.GenerateContentConfig(system_instruction=SYSTEM_PROMPT)
             )
         )
         await message.answer(response.text, parse_mode="Markdown")
