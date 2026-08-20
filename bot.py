@@ -1,11 +1,11 @@
+
 import os
 import asyncio
 import logging
 from aiohttp import web
 from aiogram import Bot, Dispatcher, F, types
 from aiogram.filters import CommandStart
-from google import genai
-from google.genai import types as genai_types
+import google.generativeai as genai
 import edge_tts
 
 # Налаштування логування
@@ -15,8 +15,8 @@ logging.basicConfig(level=logging.INFO)
 TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN")
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
 
-# Ініціалізація нового клієнта Gemini API
-client = genai.Client(api_key=GEMINI_API_KEY)
+# Налаштування класичного Gemini API
+genai.configure(api_key=GEMINI_API_KEY)
 
 SYSTEM_PROMPT = """
 Ти — професійний AI-тренер і аналітик з World of Tanks (WoT). 
@@ -29,6 +29,12 @@ SYSTEM_PROMPT = """
 4. Пояснюй механіки броні, пробиття, екранів та вибору обладнання/перків.
 5. Відповідай максимально професійно, конструктивно, з гумором та креативом!
 """
+
+# Ініціалізація моделі
+model = genai.GenerativeModel(
+    model_name="gemini-1.5-flash",
+    system_instruction=SYSTEM_PROMPT
+)
 
 bot = Bot(token=TELEGRAM_TOKEN)
 dp = Dispatcher()
@@ -60,17 +66,13 @@ async def handle_gameplay_video(message: types.Message):
         await bot.download_file(file_info.file_path, file_path)
         await status_msg.edit_text("🧠 **Gemini аналізує бій...** [50%]\nВиявляємо помилки, таймкоди та позиціонування...")
 
-        uploaded_file = client.files.upload(file=file_path)
+        uploaded_file = genai.upload_file(path=file_path)
         prompt = "Проаналізуй цей бій World of Tanks. Вкажи 3 головні помилки гравця з таймкодами, розбери позиціювання та дай підсумкову таблицю порад."
         
         loop = asyncio.get_event_loop()
         response = await loop.run_in_executor(
             None, 
-            lambda: client.models.generate_content(
-                model="gemini-3.6-flash",
-                contents=[uploaded_file, prompt],
-                config=genai_types.GenerateContentConfig(system_instruction=SYSTEM_PROMPT)
-            )
+            lambda: model.generate_content([uploaded_file, prompt])
         )
         
         await status_msg.edit_text("🎙️ **Генеруємо голосовий коментар...** [85%]")
@@ -83,6 +85,8 @@ async def handle_gameplay_video(message: types.Message):
         await message.answer(response.text, parse_mode="Markdown")
         await message.answer_voice(types.FSInputFile(voice_path))
 
+        # Видалення файлів з Google та локального сервера
+        genai.delete_file(uploaded_file.name)
         if os.path.exists(file_path):
             os.remove(file_path)
         if os.path.exists(voice_path):
@@ -100,11 +104,7 @@ async def handle_text_questions(message: types.Message):
         loop = asyncio.get_event_loop()
         response = await loop.run_in_executor(
             None,
-            lambda: client.models.generate_content(
-                model="gemini-3.6-flash",
-                contents=message.text,
-                config=genai_types.GenerateContentConfig(system_instruction=SYSTEM_PROMPT)
-            )
+            lambda: model.generate_content(message.text)
         )
         await message.answer(response.text, parse_mode="Markdown")
     except Exception as e:
