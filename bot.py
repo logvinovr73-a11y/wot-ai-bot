@@ -67,7 +67,7 @@ async def handle_gameplay_video(message: types.Message):
         response = await loop.run_in_executor(
             None, 
             lambda: client.models.generate_content(
-                model="gemini-2.0-flash",
+                model=gemini-3.6-flash,
                 contents=[uploaded_file, prompt],
                 config=genai_types.GenerateContentConfig(system_instruction=SYSTEM_PROMPT)
             )
@@ -101,7 +101,7 @@ async def handle_text_questions(message: types.Message):
         response = await loop.run_in_executor(
             None,
             lambda: client.models.generate_content(
-                model="gemini-2.0-flash",
+                model=gemini-3.6-flash,
                 contents=message.text,
                 config=genai_types.GenerateContentConfig(system_instruction=SYSTEM_PROMPT)
             )
