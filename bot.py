@@ -1,6 +1,7 @@
 import os
 import asyncio
 import logging
+from aiohttp import web
 from aiogram import Bot, Dispatcher, F, types
 from aiogram.filters import CommandStart
 import google.generativeai as genai
@@ -16,7 +17,7 @@ GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
 # Ініціалізація Gemini API
 genai.configure(api_key=GEMINI_API_KEY)
 
-# Використовуємо високошвидкісну мультимодальну модель Gemini 1.5 Flash
+# Використовуємо модель Gemini
 SYSTEM_PROMPT = """
 Ти — професійний AI-тренер і аналітик з World of Tanks (WoT). 
 Твоє завдання — аналізувати надані відеозаписи або файли боїв, карти, ТТХ техніки та помилки гравця.
@@ -29,8 +30,9 @@ SYSTEM_PROMPT = """
 5. Відповідай максимально професійно, конструктивно, з гумором та креативом!
 """
 
+# Виправлено помилку в синтаксисі аргументу model_name
 model = genai.GenerativeModel(
-    model_name"gemini-1.5-flash-latest"=,
+    model_name="gemini-1.5-flash-latest",
     system_instruction=SYSTEM_PROMPT
 )
 
@@ -68,7 +70,9 @@ async def handle_gameplay_video(message: types.Message):
         uploaded_file = genai.upload_file(file_path)
         
         prompt = "Проаналізуй цей бій World of Tanks. Вкажи 3 головні помилки гравця з таймкодами, розбери позиціювання та дай підсумкову таблицю порад."
-        response = model.generate_content([uploaded_file, prompt])
+        
+        loop = asyncio.get_event_loop()
+        response = await loop.run_in_executor(None, model.generate_content, [uploaded_file, prompt])
         
         await status_msg.edit_text("🎙️ **Генеруємо голосовий коментар...** [85%]")
 
@@ -83,21 +87,43 @@ async def handle_gameplay_video(message: types.Message):
         await message.answer_voice(types.FSInputFile(voice_path))
 
         # Очищення тимчасових файлів
-        os.remove(file_path)
-        os.remove(voice_path)
+        if os.path.exists(file_path):
+            os.remove(file_path)
+        if os.path.exists(voice_path):
+            os.remove(voice_path)
         await status_msg.delete()
 
     except Exception as e:
         logging.error(f"Error processing video: {e}")
-        await status_msg.edit_text("❌ Сталася помилка під час обробки відео. Переконайся, що файл не пошкоджений.")
+        await status_msg.edit_text(f"❌ Сталася помилка під час обробки: {e}")
 
-# Текстовий діалог та відповіді на питання (Реплаї, ТТХ, Патчі)
+# Текстовий діалог та відповіді на питання
 @dp.message(F.text)
 async def handle_text_questions(message: types.Message):
-    response = model.generate_content(message.text)
-    await message.answer(response.text, parse_mode="Markdown")
+    try:
+        loop = asyncio.get_event_loop()
+        response = await loop.run_in_executor(None, model.generate_content, message.text)
+        await message.answer(response.text, parse_mode="Markdown")
+    except Exception as e:
+        logging.error(f"Error processing text: {e}")
+        await message.answer(f"❌ Виникла помилка: {e}")
+
+# Веб-сервер для задоволення вимог портів Render
+async def handle_ping(request):
+    return web.Response(text="Bot is running!")
 
 async def main():
+    # Запуск міні-сервера для Render
+    app = web.Application()
+    app.router.add_get("/", handle_ping)
+    runner = web.AppRunner(app)
+    await runner.setup()
+    
+    port = int(os.environ.get("PORT", 8080))
+    site = web.TCPSite(runner, "0.0.0.0", port)
+    await site.start()
+    
+    # Запуск бота через Polling
     await dp.start_polling(bot)
 
 if __name__ == "__main__":
