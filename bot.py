@@ -32,7 +32,7 @@ SYSTEM_PROMPT = """
 
 # Виправлено помилку в синтаксисі аргументу model_name
 model = genai.GenerativeModel(
-    model_name="gemini-1.5-flash-latest",
+    model_name="gemini-pro",
     system_instruction=SYSTEM_PROMPT
 )
 
